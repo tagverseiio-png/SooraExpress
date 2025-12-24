@@ -1,0 +1,310 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  DELIVERY
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  STRIPE
+  CASH_ON_DELIVERY
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  name          String?
+  phone         String?
+  role          Role      @default(CUSTOMER)
+  tier          String    @default("Bronze") // Bronze, Silver, Gold, Platinum
+  dateOfBirth   DateTime?
+  ageVerified   Boolean   @default(false)
+  emailVerified Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  addresses     Address[]
+  orders        Order[]
+  reviews       Review[]
+  cart          Cart?
+}
+
+model Address {
+  id            String   @id @default(uuid())
+  userId        String
+  type          String   // Home, Work, Other
+  name          String?  // e.g., "Home", "Office"
+  street        String
+  unit          String?  // Unit/Floor number
+  building      String?
+  postalCode    String
+  district      String   // Singapore districts
+  city          String   @default("Singapore")
+  country       String   @default("SG")
+  latitude      Float?
+  longitude     Float?
+  isDefault     Boolean  @default(false)
+  deliveryNotes String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders        Order[]
+
+  @@index([userId])
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  image       String?
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products    Product[]
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  brand       String
+  slug        String   @unique
+  description String?
+  price       Float
+  comparePrice Float?  // Original price for sale items
+  costPrice   Float?   // For margin calculation
+  sku         String?  @unique
+  barcode     String?
+  
+  // Alcohol specific
+  category    String
+  volume      String   // e.g., "750ml", "CTN"
+  abv         String   // Alcohol by volume
+  origin      String?  // Country of origin
+  
+  // Inventory
+  stock       Int      @default(0)
+  lowStockAlert Int    @default(10)
+  isActive    Boolean  @default(true)
+  isFeatured  Boolean  @default(false)
+  
+  // Media
+  images      String[] // Array of image URLs
+  thumbnail   String?
+  
+  // SEO & Search
+  tags        String[]
+  searchTerms String?
+  
+  // Metrics
+  viewCount   Int      @default(0)
+  salesCount  Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  categoryId  String?
+  categoryRel Category? @relation(fields: [categoryId], references: [id])
+  
+  orderItems  OrderItem[]
+  reviews     Review[]
+  cartItems   CartItem[]
+
+  @@index([slug])
+  @@index([category])
+  @@index([brand])
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  productId String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@unique([cartId, productId])
+}
+
+model Order {
+  id                String        @id @default(uuid())
+  orderNumber       String        @unique
+  userId            String
+  
+  // Order details
+  status            OrderStatus   @default(PENDING)
+  subtotal          Float
+  deliveryFee       Float
+  discount          Float         @default(0)
+  tax               Float         @default(0)
+  total             Float
+  
+  // Payment
+  paymentMethod     PaymentMethod
+  paymentStatus     PaymentStatus @default(PENDING)
+  stripePaymentId   String?
+  
+  // Delivery
+  addressId         String
+  deliveryNotes     String?
+  estimatedDelivery DateTime?
+  deliveredAt       DateTime?
+  
+  // Lalamove tracking
+  lalamoveOrderId   String?
+  lalamoveStatus    String?
+  lalamoveDriverId  String?
+  lalamoveTrackingUrl String?
+  
+  // Customer info (snapshot)
+  customerName      String
+  customerPhone     String
+  customerEmail     String
+  
+  // Admin notes
+  notes             String?
+  cancelReason      String?
+  
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user              User          @relation(fields: [userId], references: [id])
+  address           Address       @relation(fields: [addressId], references: [id])
+  items             OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([orderNumber])
+}
+
+model OrderItem {
+  id          String   @id @default(uuid())
+  orderId     String
+  productId   String
+  
+  // Snapshot of product at time of order
+  productName String
+  brand       String
+  volume      String
+  price       Float
+  quantity    Int
+  subtotal    Float
+  
+  createdAt   DateTime @default(now())
+
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  userId      String
+  productId   String
+  rating      Int      // 1-5
+  title       String?
+  comment     String?
+  isVerified  Boolean  @default(false)
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@unique([userId, productId])
+  @@index([productId])
+}
+
+model DeliveryZone {
+  id              String   @id @default(uuid())
+  name            String   @unique // e.g., "Central", "East", "West"
+  postalCodeStart String
+  postalCodeEnd   String
+  deliveryFee     Float
+  minOrderAmount  Float
+  estimatedTime   Int      // Minutes
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Promotion {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  type        String   // PERCENTAGE, FIXED_AMOUNT, FREE_DELIVERY
+  value       Float
+  minPurchase Float?
+  maxDiscount Float?
+  startDate   DateTime
+  endDate     DateTime
+  usageLimit  Int?
+  usageCount  Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([code])
+}
+
+model Settings {
+  id    String @id @default(uuid())
+  key   String @unique
+  value String
+  type  String // STRING, NUMBER, BOOLEAN, JSON
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
