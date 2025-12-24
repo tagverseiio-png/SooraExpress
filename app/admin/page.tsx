@@ -195,33 +195,53 @@ export default function AdminPanel() {
   const handleSaveProduct = () => {
     if (!formData.name || !formData.category) return;
 
+    const nextStock = formData.stock ?? editingProduct?.stock ?? 0;
+    const nextPrice = formData.price ?? editingProduct?.price ?? 0;
+    const computedStatus = nextPrice === 0 ? "Hidden" : nextStock < 12 ? "Low" : "Healthy";
+
     if (editingProduct) {
+      const updatedProduct: Product = {
+        ...editingProduct,
+        ...formData,
+        stock: nextStock,
+        price: nextPrice,
+        status: computedStatus,
+        margin: 35,
+        brand: formData.brand ?? editingProduct.brand,
+        image: formData.image ?? editingProduct.image,
+        volume: formData.volume ?? editingProduct.volume,
+        abv: formData.abv ?? editingProduct.abv,
+        desc: formData.desc ?? editingProduct.desc,
+        tags: formData.tags ?? editingProduct.tags,
+        time: formData.time ?? editingProduct.time,
+      };
+
       setProducts((prev) =>
-        prev.map((p) =>
-          p.id === editingProduct.id
-            ? { ...p, ...formData, margin: 35, status: (formData.stock || 0) < 12 ? 'Low' : 'Healthy' } as Product
-            : p
-        )
+        prev.map((product) => (product.id === editingProduct.id ? updatedProduct : product))
       );
     } else {
       const newProduct: Product = {
-        id: Math.max(...products.map(p => p.id), 0) + 1,
+        id: Math.max(...products.map((product) => product.id), 0) + 1,
         name: formData.name!,
         category: formData.category!,
-        price: formData.price || 0,
-        stock: formData.stock || 0,
-        status: (formData.stock || 0) < 12 ? 'Low' : 'Healthy',
-        image: "/placeholder.png",
-        brand: "Soora",
-        rating: 0,
-        reviews: 0,
-        colors: [],
+        price: nextPrice,
+        stock: nextStock,
+        status: computedStatus,
+        image: formData.image ?? "/placeholder.png",
+        brand: formData.brand ?? "Soora",
+        rating: formData.rating ?? 0,
+        reviews: formData.reviews ?? 0,
         margin: 35,
-        description: "",
-        features: []
+        volume: formData.volume ?? "BOT",
+        abv: formData.abv ?? "0%",
+        desc: formData.desc ?? "",
+        tags: formData.tags ?? [],
+        time: formData.time ?? "Today",
       };
+
       setProducts((prev) => [newProduct, ...prev]);
     }
+
     setIsDialogOpen(false);
     setEditingProduct(null);
     setFormData({});
@@ -235,7 +255,7 @@ export default function AdminPanel() {
 
   const openAddModal = () => {
     setEditingProduct(null);
-    setFormData({ category: "Clothing", stock: 20, price: 0 });
+    setFormData({ category: "BEER", stock: 20, price: 0 });
     setIsDialogOpen(true);
   };
 

@@ -38,6 +38,9 @@ export default function SooraApp() {
         ? PRODUCTS
         : PRODUCTS.filter(p => p.category === activeCategory);
 
+    const displayName = user?.name || user?.email || 'User';
+    const userInitial = displayName.charAt(0).toUpperCase();
+
     if (!showShop) {
         return <LandingPage onEnter={() => setShowShop(true)} />;
     }
@@ -303,10 +306,10 @@ export default function SooraApp() {
                     <>
                         <div className="flex flex-col items-center mb-8">
                             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center text-2xl font-semibold text-gray-400 mb-4">
-                                {user.user_metadata?.full_name?.charAt(0) || user.email?.charAt(0).toUpperCase()}
+                                {userInitial}
                             </div>
-                            <h3 className="text-[21px] font-semibold text-[#1d1d1f]">{user.user_metadata?.full_name || 'User'}</h3>
-                            <p className="text-[14px] text-gray-500">{user.email}</p>
+                            <h3 className="text-[21px] font-semibold text-[#1d1d1f]">{user?.name || 'User'}</h3>
+                            <p className="text-[14px] text-gray-500">{user?.email}</p>
                         </div>
                         <div className="space-y-8">
                             <div>
