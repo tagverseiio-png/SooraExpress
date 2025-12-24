@@ -1,14 +1,32 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validators } from '../middleware/validators';
 import { validationResult } from 'express-validator';
+import { ParamsDictionary } from 'express-serve-static-core';
 
 const router = Router();
 const prisma = new PrismaClient();
 
+interface UpdateProfileBody {
+  name?: string;
+  phone?: string;
+}
+
+interface AddressPayload {
+  type: string;
+  name: string;
+  street: string;
+  unit?: string;
+  building?: string;
+  postalCode: string;
+  district: string;
+  isDefault?: boolean;
+  deliveryNotes?: string;
+}
+
 // Get user profile
-router.get('/profile', authenticate, async (req: AuthRequest, res) => {
+router.get('/profile', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
@@ -33,7 +51,10 @@ router.get('/profile', authenticate, async (req: AuthRequest, res) => {
 });
 
 // Update profile
-router.put('/profile', authenticate, async (req: AuthRequest, res) => {
+router.put(
+  '/profile',
+  authenticate,
+  async (req: AuthRequest<ParamsDictionary, any, UpdateProfileBody>, res: Response) => {
   try {
     const { name, phone } = req.body;
 
@@ -54,10 +75,11 @@ router.put('/profile', authenticate, async (req: AuthRequest, res) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 // Get user addresses
-router.get('/addresses', authenticate, async (req: AuthRequest, res) => {
+router.get('/addresses', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const addresses = await prisma.address.findMany({
       where: { userId: req.user!.id },
@@ -71,7 +93,14 @@ router.get('/addresses', authenticate, async (req: AuthRequest, res) => {
 });
 
 // Create address
-router.post('/addresses', authenticate, validators.createAddress, async (req: AuthRequest, res) => {
+router.post(
+  '/addresses',
+  authenticate,
+  validators.createAddress,
+  async (
+    req: AuthRequest<ParamsDictionary, any, AddressPayload>,
+    res: Response
+  ) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -107,10 +136,17 @@ router.post('/addresses', authenticate, validators.createAddress, async (req: Au
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 // Update address
-router.put('/addresses/:id', authenticate, async (req: AuthRequest, res) => {
+router.put(
+  '/addresses/:id',
+  authenticate,
+  async (
+    req: AuthRequest<{ id: string }, any, AddressPayload>,
+    res: Response
+  ) => {
   try {
     const { type, name, street, unit, building, postalCode, district, isDefault, deliveryNotes } = req.body;
 
@@ -154,10 +190,14 @@ router.put('/addresses/:id', authenticate, async (req: AuthRequest, res) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 // Delete address
-router.delete('/addresses/:id', authenticate, async (req: AuthRequest, res) => {
+router.delete(
+  '/addresses/:id',
+  authenticate,
+  async (req: AuthRequest<{ id: string }>, res: Response) => {
   try {
     const existing = await prisma.address.findUnique({
       where: { id: req.params.id },
@@ -175,6 +215,7 @@ router.delete('/addresses/:id', authenticate, async (req: AuthRequest, res) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 export default router;

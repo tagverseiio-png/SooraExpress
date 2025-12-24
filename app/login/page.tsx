@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, Mail, Lock, AlertCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,19 +20,11 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        router.push('/');
-        router.refresh();
-      }
+      await signIn(email, password);
+      router.push('/');
+      router.refresh();
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in. Please try again.');
+      setError(err?.message || 'Failed to sign in. Please try again.');
     } finally {
       setLoading(false);
     }

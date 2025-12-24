@@ -1,15 +1,26 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions, Secret } from 'jsonwebtoken';
 import { validators } from '../middleware/validators';
 import { validationResult } from 'express-validator';
 
 const router = Router();
 const prisma = new PrismaClient();
 
+const jwtSecretEnv = process.env.JWT_SECRET;
+if (!jwtSecretEnv) {
+  throw new Error('JWT_SECRET environment variable is not set');
+}
+
+const jwtSecret: Secret = jwtSecretEnv;
+const jwtExpiresIn = process.env.JWT_EXPIRES_IN ?? '7d';
+const jwtSignOptions: SignOptions = {
+  expiresIn: jwtExpiresIn as SignOptions['expiresIn'],
+};
+
 // Register
-router.post('/register', validators.register, async (req, res) => {
+router.post('/register', validators.register, async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -59,8 +70,8 @@ router.post('/register', validators.register, async (req, res) => {
     // Generate JWT
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      jwtSecret,
+      jwtSignOptions
     );
 
     res.status(201).json({ user, token });
@@ -70,7 +81,7 @@ router.post('/register', validators.register, async (req, res) => {
 });
 
 // Login
-router.post('/login', validators.login, async (req, res) => {
+router.post('/login', validators.login, async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -99,8 +110,8 @@ router.post('/login', validators.login, async (req, res) => {
     // Generate JWT
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      jwtSecret,
+      jwtSignOptions
     );
 
     // Return user without password
@@ -113,14 +124,14 @@ router.post('/login', validators.login, async (req, res) => {
 });
 
 // Get current user
-router.get('/me', async (req, res) => {
+router.get('/me', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, jwtSecret) as any;
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
@@ -148,7 +159,7 @@ router.get('/me', async (req, res) => {
 });
 
 // Logout
-router.post('/logout', async (req, res) => {
+router.post('/logout', async (_req: Request, res: Response) => {
   res.json({ message: 'Logged out successfully' });
 });
 

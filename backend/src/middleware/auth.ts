@@ -1,12 +1,26 @@
 import { Request, Response, NextFunction } from 'express';
+import { ParamsDictionary } from 'express-serve-static-core';
 import jwt from 'jsonwebtoken';
+import { ParsedQs } from 'qs';
 
-export interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    role: string;
-  };
+interface AuthUser {
+  id: string;
+  email: string;
+  role: string;
+}
+
+export type AuthRequest<
+  Params extends ParamsDictionary = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs
+> = Request<Params, ResBody, ReqBody, ReqQuery> & {
+  user?: AuthUser;
+};
+
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error('JWT_SECRET environment variable is not set');
 }
 
 export const authenticate = async (
@@ -21,7 +35,7 @@ export const authenticate = async (
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, jwtSecret) as AuthUser;
     req.user = decoded;
     
     next();

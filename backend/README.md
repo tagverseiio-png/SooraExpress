@@ -185,7 +185,7 @@ npm start
 
 ### Recommended Platforms
 - **API**: Railway, Render, DigitalOcean
-- **Database**: Railway PostgreSQL, Supabase, Neon
+- **Database**: Railway PostgreSQL, Neon
 - **Redis**: Upstash, Redis Cloud
 
 ## 🔒 Security Features

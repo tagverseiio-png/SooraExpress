@@ -1,13 +1,24 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { validators } from '../middleware/validators';
-import { validationResult } from 'express-validator';
 
 const router = Router();
 const prisma = new PrismaClient();
 
+interface ProductQuery {
+  category?: string;
+  brand?: string;
+  minPrice?: string;
+  maxPrice?: string;
+  search?: string;
+  page?: string;
+  limit?: string;
+  sortBy?: string;
+  order?: 'asc' | 'desc';
+}
+
 // Get all products with filters
-router.get('/', validators.pagination, async (req, res) => {
+router.get('/', validators.pagination, async (req: Request<unknown, unknown, unknown, ProductQuery>, res: Response) => {
   try {
     const { 
       category, 
@@ -72,7 +83,7 @@ router.get('/', validators.pagination, async (req, res) => {
 });
 
 // Get single product
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const product = await prisma.product.findUnique({
       where: { id: req.params.id },
@@ -105,7 +116,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Get featured products
-router.get('/featured/list', async (req, res) => {
+router.get('/featured/list', async (_req: Request, res: Response) => {
   try {
     const products = await prisma.product.findMany({
       where: { isFeatured: true, isActive: true },
@@ -120,7 +131,7 @@ router.get('/featured/list', async (req, res) => {
 });
 
 // Get categories
-router.get('/categories/list', async (req, res) => {
+router.get('/categories/list', async (_req: Request, res: Response) => {
   try {
     const categories = await prisma.category.findMany({
       where: { isActive: true },

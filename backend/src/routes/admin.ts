@@ -1,11 +1,26 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, authorizeRole, AuthRequest } from '../middleware/auth';
 import { validators } from '../middleware/validators';
 import { validationResult } from 'express-validator';
+import { ParamsDictionary } from 'express-serve-static-core';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+interface AdminPaginationQuery {
+  page?: string;
+  limit?: string;
+}
+
+interface AdminOrderQuery extends AdminPaginationQuery {
+  status?: string;
+}
+
+interface AdminSalesQuery {
+  startDate?: string;
+  endDate?: string;
+}
 
 // All admin routes require authentication and ADMIN role
 router.use(authenticate);
@@ -14,7 +29,10 @@ router.use(authorizeRole('ADMIN'));
 // ===== PRODUCTS MANAGEMENT =====
 
 // Create product
-router.post('/products', validators.createProduct, async (req: AuthRequest, res) => {
+router.post(
+  '/products',
+  validators.createProduct,
+  async (req: AuthRequest, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -32,10 +50,11 @@ router.post('/products', validators.createProduct, async (req: AuthRequest, res)
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 // Update product
-router.put('/products/:id', async (req: AuthRequest, res) => {
+router.put('/products/:id', async (req: AuthRequest<{ id: string }>, res: Response) => {
   try {
     const product = await prisma.product.update({
       where: { id: req.params.id },
@@ -49,7 +68,7 @@ router.put('/products/:id', async (req: AuthRequest, res) => {
 });
 
 // Delete product
-router.delete('/products/:id', async (req: AuthRequest, res) => {
+router.delete('/products/:id', async (req: AuthRequest<{ id: string }>, res: Response) => {
   try {
     await prisma.product.update({
       where: { id: req.params.id },
@@ -63,7 +82,9 @@ router.delete('/products/:id', async (req: AuthRequest, res) => {
 });
 
 // Update stock
-router.put('/products/:id/stock', async (req: AuthRequest, res) => {
+router.put(
+  '/products/:id/stock',
+  async (req: AuthRequest<{ id: string }>, res: Response) => {
   try {
     const { stock } = req.body;
 
@@ -76,27 +97,35 @@ router.put('/products/:id/stock', async (req: AuthRequest, res) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 // ===== ORDERS MANAGEMENT =====
 
 // Get all orders
-router.get('/orders', async (req: AuthRequest, res) => {
+router.get(
+  '/orders',
+  async (
+    req: AuthRequest<ParamsDictionary, any, any, AdminOrderQuery>,
+    res: Response
+  ) => {
   try {
-    const { status, page = 1, limit = 20 } = req.query;
+    const { status, page = '1', limit = '20' } = req.query;
 
     const where: any = {};
     if (status) {
       where.status = status;
     }
 
-    const skip = (Number(page) - 1) * Number(limit);
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+    const skip = (pageNumber - 1) * limitNumber;
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
         where,
         skip,
-        take: Number(limit),
+        take: limitNumber,
         include: {
           user: {
             select: { name: true, email: true, phone: true },
@@ -114,19 +143,22 @@ router.get('/orders', async (req: AuthRequest, res) => {
     res.json({
       orders,
       pagination: {
-        page: Number(page),
-        limit: Number(limit),
+        page: pageNumber,
+        limit: limitNumber,
         total,
-        pages: Math.ceil(total / Number(limit)),
+        pages: limitNumber > 0 ? Math.ceil(total / limitNumber) : 1,
       },
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 // Update order status
-router.put('/orders/:id/status', async (req: AuthRequest, res) => {
+router.put(
+  '/orders/:id/status',
+  async (req: AuthRequest<{ id: string }>, res: Response) => {
   try {
     const { status } = req.body;
 
@@ -146,20 +178,28 @@ router.put('/orders/:id/status', async (req: AuthRequest, res) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 // ===== USERS MANAGEMENT =====
 
 // Get all users
-router.get('/users', async (req: AuthRequest, res) => {
+router.get(
+  '/users',
+  async (
+    req: AuthRequest<ParamsDictionary, any, any, AdminPaginationQuery>,
+    res: Response
+  ) => {
   try {
-    const { page = 1, limit = 20 } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
+    const { page = '1', limit = '20' } = req.query;
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+    const skip = (pageNumber - 1) * limitNumber;
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         skip,
-        take: Number(limit),
+        take: limitNumber,
         select: {
           id: true,
           email: true,
@@ -181,19 +221,22 @@ router.get('/users', async (req: AuthRequest, res) => {
     res.json({
       users,
       pagination: {
-        page: Number(page),
-        limit: Number(limit),
+        page: pageNumber,
+        limit: limitNumber,
         total,
-        pages: Math.ceil(total / Number(limit)),
+        pages: limitNumber > 0 ? Math.ceil(total / limitNumber) : 1,
       },
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 // Update user tier
-router.put('/users/:id/tier', async (req: AuthRequest, res) => {
+router.put(
+  '/users/:id/tier',
+  async (req: AuthRequest<{ id: string }>, res: Response) => {
   try {
     const { tier } = req.body;
 
@@ -212,12 +255,13 @@ router.put('/users/:id/tier', async (req: AuthRequest, res) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 // ===== ANALYTICS =====
 
 // Get dashboard stats
-router.get('/stats', async (req: AuthRequest, res) => {
+router.get('/stats', async (req: AuthRequest, res: Response) => {
   try {
     const [
       totalOrders,
@@ -253,7 +297,12 @@ router.get('/stats', async (req: AuthRequest, res) => {
 });
 
 // Get sales report
-router.get('/reports/sales', async (req: AuthRequest, res) => {
+router.get(
+  '/reports/sales',
+  async (
+    req: AuthRequest<ParamsDictionary, any, any, AdminSalesQuery>,
+    res: Response
+  ) => {
   try {
     const { startDate, endDate } = req.query;
 
@@ -290,6 +339,7 @@ router.get('/reports/sales', async (req: AuthRequest, res) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 export default router;

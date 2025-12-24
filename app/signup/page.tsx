@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, Mail, Lock, User as UserIcon, AlertCircle, CheckCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function SignupPage() {
   const router = useRouter();
+  const { signUp } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,25 +29,12 @@ export default function SignupPage() {
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: name,
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        setSuccess(true);
-        setTimeout(() => {
-          router.push('/');
-          router.refresh();
-        }, 1500);
-      }
+      await signUp(email, password, { name });
+      setSuccess(true);
+      setTimeout(() => {
+        router.push('/');
+        router.refresh();
+      }, 1500);
     } catch (err: any) {
       setError(err.message || 'Failed to create account. Please try again.');
     } finally {

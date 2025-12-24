@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { apiClient } from './supabase';
+import { apiClient } from './apiClient';
 
 type User = {
   id: string;
@@ -61,21 +61,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    const response = await apiClient.request('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-    localStorage.setItem('auth_token', response.token);
-    setUser(response.user);
+    try {
+      const response = await apiClient.request('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      localStorage.setItem('auth_token', response.token);
+      setUser(response.user);
+    } catch (error: any) {
+      throw new Error(error?.message || 'Unable to sign in');
+    }
   };
 
   const signUp = async (email: string, password: string, data?: any) => {
-    const response = await apiClient.request('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ email, password, ...data }),
-    });
-    localStorage.setItem('auth_token', response.token);
-    setUser(response.user);
+    try {
+      const response = await apiClient.request('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, ...data }),
+      });
+      localStorage.setItem('auth_token', response.token);
+      setUser(response.user);
+    } catch (error: any) {
+      throw new Error(error?.message || 'Unable to sign up');
+    }
   };
 
   const signOut = async () => {

@@ -1,16 +1,42 @@
-import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Router, Response } from 'express';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validators } from '../middleware/validators';
 import { validationResult } from 'express-validator';
 import { stripeService } from '../services/stripe.service';
 import { lalamoveService } from '../services/lalamove.service';
+import { ParamsDictionary } from 'express-serve-static-core';
 
 const router = Router();
 const prisma = new PrismaClient();
 
+type PaymentMethod = 'STRIPE' | 'CASH_ON_DELIVERY';
+
+interface OrderItemInput {
+  productId: string;
+  quantity: number;
+}
+
+interface CreateOrderBody {
+  addressId: string;
+  items: OrderItemInput[];
+  paymentMethod: PaymentMethod;
+  deliveryNotes?: string;
+}
+
+interface CancelOrderBody {
+  reason?: string;
+}
+
 // Create order
-router.post('/', authenticate, validators.createOrder, async (req: AuthRequest, res) => {
+router.post(
+  '/',
+  authenticate,
+  validators.createOrder,
+  async (
+    req: AuthRequest<ParamsDictionary, any, CreateOrderBody>,
+    res: Response
+  ) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -31,7 +57,7 @@ router.post('/', authenticate, validators.createOrder, async (req: AuthRequest, 
 
     // Calculate order totals
     let subtotal = 0;
-    const orderItems = [];
+    const orderItems: Prisma.OrderItemCreateWithoutOrderInput[] = [];
 
     for (const item of items) {
       const product = await prisma.product.findUnique({
@@ -52,10 +78,12 @@ router.post('/', authenticate, validators.createOrder, async (req: AuthRequest, 
       subtotal += itemSubtotal;
 
       orderItems.push({
-        productId: product.id,
+        product: {
+          connect: { id: product.id },
+        },
         productName: product.name,
-        brand: product.brand,
-        volume: product.volume,
+        brand: product.brand ?? null,
+        volume: product.volume ?? null,
         price: product.price,
         quantity: item.quantity,
         subtotal: itemSubtotal,
@@ -63,9 +91,10 @@ router.post('/', authenticate, validators.createOrder, async (req: AuthRequest, 
     }
 
     // Calculate delivery fee
-    const deliveryFee = subtotal >= Number(process.env.FREE_DELIVERY_THRESHOLD || 100) 
-      ? 0 
-      : Number(process.env.DELIVERY_FEE || 5);
+    const deliveryFee =
+      subtotal >= Number(process.env.FREE_DELIVERY_THRESHOLD ?? 100)
+        ? 0
+        : Number(process.env.DELIVERY_FEE ?? 5);
 
     const total = subtotal + deliveryFee;
 
@@ -103,7 +132,7 @@ router.post('/', authenticate, validators.createOrder, async (req: AuthRequest, 
     });
 
     // Create Stripe payment intent if paying online
-    let paymentIntent = null;
+    let paymentIntent: Awaited<ReturnType<typeof stripeService.createPaymentIntent>> | null = null;
     if (paymentMethod === 'STRIPE') {
       paymentIntent = await stripeService.createPaymentIntent(total, {
         orderId: order.id,
@@ -129,17 +158,18 @@ router.post('/', authenticate, validators.createOrder, async (req: AuthRequest, 
 
     res.status(201).json({
       order,
-      ...(paymentIntent && { 
-        clientSecret: paymentIntent.client_secret 
+      ...(paymentIntent && {
+        clientSecret: paymentIntent.client_secret,
       }),
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 // Get user orders
-router.get('/my-orders', authenticate, async (req: AuthRequest, res) => {
+router.get('/my-orders', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const orders = await prisma.order.findMany({
       where: { userId: req.user!.id },
@@ -166,7 +196,10 @@ router.get('/my-orders', authenticate, async (req: AuthRequest, res) => {
 });
 
 // Get single order
-router.get('/:id', authenticate, async (req: AuthRequest, res) => {
+router.get(
+  '/:id',
+  authenticate,
+  async (req: AuthRequest<{ id: string }>, res: Response) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: req.params.id },
@@ -200,10 +233,17 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 // Cancel order
-router.put('/:id/cancel', authenticate, async (req: AuthRequest, res) => {
+router.put(
+  '/:id/cancel',
+  authenticate,
+  async (
+    req: AuthRequest<{ id: string }, any, CancelOrderBody>,
+    res: Response
+  ) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: req.params.id },
@@ -251,6 +291,7 @@ router.put('/:id/cancel', authenticate, async (req: AuthRequest, res) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
-});
+  }
+);
 
 export default router;
